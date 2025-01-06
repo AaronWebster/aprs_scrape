@@ -45,7 +45,7 @@ def GetRequiredEnv(name, value_type=str):
 
   try:
     if value_type == list:
-      return value.split(',').split(' ')
+      return value.split(',')
     elif value_type == int:
       return int(value)
     elif value_type == float:
