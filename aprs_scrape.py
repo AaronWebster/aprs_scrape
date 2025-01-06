@@ -23,16 +23,58 @@ import time
 import random
 
 
-def FetchStationData(config):
+def GetRequiredEnv(name, value_type=str):
   """
-    Fetch station data from aprs.fi and store in SQLite database.
-    Returns True if we successfully retrieved data for at least one station.
-    Returns False otherwise (no data or an error occurred).
-    """
+    Asserts that a required environment variable exists, validates its type, and returns its value.
 
-  station_names = config.get('stations', [])
+    Args:
+        name (str): The name of the environment variable.
+        value_type (type): The expected type of the environment variable's value.
+                           Supported types: str, int, float, list.
+
+    Returns:
+        The value of the environment variable, converted to the specified type.
+
+    Raises:
+        KeyError: If the environment variable is not set.
+        ValueError: If the environment variable cannot be converted to the specified type.
+    """
+  value = os.getenv(name)
+  if value is None:
+    raise KeyError(f"Required environment variable '{name}' not set.")
+
+  try:
+    if value_type == list:
+      return value.split(',').split(' ')
+    elif value_type == int:
+      return int(value)
+    elif value_type == float:
+      return float(value)
+    elif value_type == str:
+      return value
+    else:
+      raise ValueError(f"Unsupported value type: {value_type}")
+  except Exception as e:
+    raise ValueError(
+        f"Error converting environment variable '{name}' to {value_type}: {e}")
+
+
+STATIONS = GetRequiredEnv('STATIONS', list)
+DATABASE_PATH = GetRequiredEnv('DATABASE_PATH', str)
+API_KEY = GetRequiredEnv('API_KEY', str)
+MIN_INTERVAL_SEC = GetRequiredEnv('MIN_INTERVAL_SEC', int)
+MAX_INTERVAL_SEC = GetRequiredEnv('MAX_INTERVAL_SEC', int)
+
+
+def FetchStationData():
+  """
+  Fetch station data from aprs.fi and store in SQLite database.
+  Returns True if we successfully retrieved data for at least one station.
+  Returns False otherwise (no data or an error occurred).
+  """
+
+  station_names = STATIONS
   if not station_names:
-    print("No stations found in config.")
     return False
 
   print(f'Loaded {len(station_names)} stations:')
@@ -46,7 +88,7 @@ def FetchStationData(config):
 
   # Connect to database
   try:
-    sqlite_conn = sqlite3.connect(config['database_path'])
+    sqlite_conn = sqlite3.connect(DATABASE_PATH)
     # Enable extension loading
     sqlite_conn.enable_load_extension(True)
     if os.name == 'nt':
@@ -55,7 +97,7 @@ def FetchStationData(config):
       sqlite_conn.load_extension('mod_spatialite.so')
     sqlite_cur = sqlite_conn.cursor()
   except Exception as e:
-    print(f"Error connecting to database {config['database_path']}: {e}")
+    print(f"Error connecting to database {DATABASE_PATH}: {e}")
     return False
 
   # Create table if it doesn't exist
@@ -93,7 +135,7 @@ def FetchStationData(config):
     params = {
         'name': station_list_str,
         'what': 'loc',
-        'apikey': config['api_key'],
+        'apikey': API_KEY,
         'format': 'json'
     }
 
@@ -188,28 +230,20 @@ def FetchStationData(config):
 def Main():
   print('APRS scraper started.')
 
-  config_file = os.getenv('CONFIG_FILE', '/data/config.json')
-  with open(config_file, 'r') as f:
-    config = json.load(f)
-  print(f'Loaded config from {config_file}')
-
-  assert config['stations'] is not None
-  assert config['database_path'] is not None
-  assert isinstance(config['max_interval_sec'], int)
-  assert isinstance(config['min_interval_sec'], int)
-  assert config['min_interval_sec'] < config['max_interval_sec']
-  assert config['api_key'] is not None
+  assert MIN_INTERVAL_SEC > 0
+  assert MAX_INTERVAL_SEC > 0
+  assert MIN_INTERVAL_SEC < MAX_INTERVAL_SEC
 
   # Start at the minimum interval
-  sleep_time_sec = config['min_interval_sec']
+  sleep_time_sec = MIN_INTERVAL_SEC
 
   while True:
-    success = FetchStationData(config)
+    success = FetchStationData()
 
     if success:
-      sleep_time_sec = config['min_interval_sec']
+      sleep_time_sec = MIN_INTERVAL_SEC
     else:
-      sleep_time_sec = min(sleep_time_sec * 2, config['max_interval_sec'])
+      sleep_time_sec = min(sleep_time_sec * 2, MAX_INTERVAL_SEC)
 
     print(f'Sleeping for {sleep_time_sec} seconds...')
     time.sleep(sleep_time_sec)

@@ -1,7 +1,0 @@
-{
-    "stations": ["STATION_A", "STATION_B"],
-    "database_path": "/data/station_db.sqlite",
-    "api_key": "APRS_FI_API_KEY",
-    "max_interval_sec": 120,
-    "min_interval_sec": 14440
-}

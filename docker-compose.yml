@@ -16,6 +16,12 @@ services:
   aprs_scrape:
     build: .
     container_name: aprs_scrape
+    environment:
+      - API_KEY=YOUR_API_KEY
+      - MIN_INTERVAL_SEC=120
+      - MAX_INTERVAL_SEC=14400
+      - STATIONS=STATION_A,STATION_B
+      - DATABASE_PATH=/data/station_db.sqlite
     volumes:
       - ./data:/data
     healthcheck:
